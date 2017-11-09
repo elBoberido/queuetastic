@@ -7,7 +7,7 @@
 
 enum {
     BURITTO_CAPACITY = 10,
-    BURRITO_REAL_CAPACITY = BURITTO_CAPACITY + 1
+    BURITTO_REAL_CAPACITY = BURITTO_CAPACITY + 1
 };
 
 typedef size_t BuRiTTOData;
@@ -23,31 +23,31 @@ int main(int, char**) {
     
     MyBuRiTTo buritto;
     
-    if(!buritto.empty()) { std::cout << "Failure: BuRiTTO should be empty!" << std::endl; }
+    if(!buritto.empty()) { std::cout << "1000 Failure: BuRiTTO should be empty!" << std::endl; }
     
     BuRiTTOData dataCounter {BuRiTTO_CounterStartValue};
     BuRiTTOData pushCounter {BuRiTTO_CounterStartValue};
     BuRiTTOData outValue {BuRiTTO_InvalidValue};
-    for(int i = 0; i < BURRITO_REAL_CAPACITY; i++) {
+    for(int i = 0; i < BURITTO_REAL_CAPACITY; i++) {
         outValue = BuRiTTO_InvalidValue;
-        if(buritto.push(pushCounter, outValue) == false) { std::cout << "Failure: BuRiTTO should not overrun!" << std::endl; }
+        if(buritto.push(pushCounter, outValue) == false) { std::cout << "1010 Failure: BuRiTTO should not overrun!" << std::endl; }
         pushCounter++;
-        if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
+        if(outValue != BuRiTTO_InvalidValue) { std::cout << "1020 Failure: BuRiTTO should not return data!" << std::endl; }
         
-        if(buritto.empty()) { std::cout << "Failure: BuRiTTO should not be empty!" << std::endl; }
+        if(buritto.empty()) { std::cout << "1030 Failure: BuRiTTO should not be empty!" << std::endl; }
     }
     
     outValue = BuRiTTO_InvalidValue;
-    if(buritto.push(pushCounter, outValue) == true) { std::cout << "Failure: BuRiTTO should overrun!" << std::endl; }
+    if(buritto.push(pushCounter, outValue) == true) { std::cout << "1040 Failure: BuRiTTO should overrun!" << std::endl; }
     pushCounter++;
-    if(outValue != dataCounter) { std::cout << "Failure: BuRiTTO should overrun and return data!" << std::endl; }
+    if(outValue != dataCounter) { std::cout << "1050 Failure: BuRiTTO should overrun and return data!" << std::endl; }
     dataCounter++;
     
-    for(int i = 0; i < BURRITO_REAL_CAPACITY; i++) {
-        if(buritto.empty()) { std::cout << "Failure: BuRiTTO should not be empty!" << std::endl; }
+    for(int i = 0; i < BURITTO_REAL_CAPACITY; i++) {
+        if(buritto.empty()) { std::cout << "1060 Failure: BuRiTTO should not be empty!" << std::endl; }
         outValue = BuRiTTO_InvalidValue;
-        if(buritto.pop(outValue) == false) { std::cout << "Failure: BuRiTTO should return data!" << std::endl; }
-        if(outValue != dataCounter) { std::cout << "Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
+        if(buritto.pop(outValue) == false) { std::cout << "1070 Failure: BuRiTTO should return data!" << std::endl; }
+        if(outValue != dataCounter) { std::cout << "1080 Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
         dataCounter++;
     }
     
@@ -56,7 +56,7 @@ int main(int, char**) {
     if(buritto.pop(outValue) == true) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
     if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
     
-    for(int i = 0; i < 3 * BURRITO_REAL_CAPACITY; i++) {
+    for(int i = 0; i < 3 * BURITTO_REAL_CAPACITY; i++) {
         outValue = BuRiTTO_InvalidValue;
         if(buritto.push(pushCounter, outValue) == true) {
             if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
@@ -90,7 +90,7 @@ int main(int, char**) {
     std::vector<BuRiTTOData> popData;
     
     auto pushThread = std::thread([&] {
-        for(int i = 0; i < 1000000; i++) {
+        for(int i = 0; i < 10000; i++) {
             BuRiTTOData out {BuRiTTO_InvalidValue};
             if(buritto.push(pushCounter, out) == true) {
                 if(out != BuRiTTO_InvalidValue) { std::cout << "Failure: pushThread BuRiTTO should not return data!" << std::endl; break; }
@@ -126,16 +126,14 @@ int main(int, char**) {
     std::cout << overrunCounter << std::endl;
     std::cout << popCounter << std::endl;
     
-//     for(auto& data: overrunData) {
-//         std::cout << data << " ";
-//     }
-//     std::cout << std::endl;
-//     
-//     for(auto& data: popData) {
-//         std::cout << data << " ";
-//     }
-//     std::cout << std::endl;
+    for(auto& data: overrunData) {
+        std::cout << data << " ";
+    }
+    std::cout << std::endl;
     
-//     std::cout << "Hello from client!" << std::endl;
+    for(auto& data: popData) {
+        std::cout << data << " ";
+    }
+    std::cout << std::endl;
     return 0;
 }
