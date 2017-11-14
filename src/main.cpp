@@ -15,7 +15,7 @@ typedef size_t BuRiTTOData;
 typedef BuRiTTO<BuRiTTOData, BURITTO_CAPACITY> MyBuRiTTo;
 
 enum {
-    BuRiTTO_CounterStartValue = static_cast<BuRiTTOData>(1),
+    BuRiTTO_CounterStartValue = static_cast<BuRiTTOData>(0),
     BuRiTTO_InvalidValue = static_cast<BuRiTTOData>(-1)
 };
 
@@ -51,35 +51,37 @@ int main(int, char**) {
         dataCounter++;
     }
     
-    if(!buritto.empty()) { std::cout << "Failure: BuRiTTO should be empty!" << std::endl; }
+    if(!buritto.empty()) { std::cout << "1090 Failure: BuRiTTO should be empty!" << std::endl; }
     outValue = BuRiTTO_InvalidValue;
-    if(buritto.pop(outValue) == true) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
-    if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
+    if(buritto.pop(outValue) == true) { std::cout << "1100 Failure: BuRiTTO should not return data!" << std::endl; }
+    if(outValue != BuRiTTO_InvalidValue) { std::cout << "1110 Failure: BuRiTTO should not return data!" << std::endl; }
     
     for(int i = 0; i < 3 * BURITTO_REAL_CAPACITY; i++) {
         outValue = BuRiTTO_InvalidValue;
         if(buritto.push(pushCounter, outValue) == true) {
-            if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
+            if(outValue != BuRiTTO_InvalidValue) { std::cout << "1120 Failure: BuRiTTO should not return data!" << std::endl; }
         }else {
-            if(outValue != dataCounter) { std::cout << "Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
+            if(outValue != dataCounter) { std::cout << "1130 Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
             dataCounter++;
         }
         pushCounter++;
-        if(buritto.empty()) { std::cout << "Failure: BuRiTTO should not be empty!" << std::endl; }
+        if(buritto.empty()) { std::cout << "1140 Failure: BuRiTTO should not be empty!" << std::endl; }
     }
     
     outValue = BuRiTTO_InvalidValue;
     while(buritto.pop(outValue) == true) {
-        if(outValue != dataCounter) { std::cout << "Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
+        if(outValue != dataCounter) { std::cout << "1160 Failure: BuRiTTO lost data! " << "Expected: " << dataCounter << " Actual: " << outValue << std::endl; }
         dataCounter++;
         outValue = BuRiTTO_InvalidValue;
     }
-    if(outValue != BuRiTTO_InvalidValue) { std::cout << "Failure: BuRiTTO should not return data!" << std::endl; }
+    if(outValue != BuRiTTO_InvalidValue) { std::cout << "1170 Failure: BuRiTTO should not return data!" << std::endl; }
     
-    if(!buritto.empty()) { std::cout << "Failure: BuRiTTO should be empty!" << std::endl; }
+    if(!buritto.empty()) { std::cout << "1180 Failure: BuRiTTO should be empty!" << std::endl; }
+    if(pushCounter != dataCounter) { std::cout << "1190 Failure: BuRiTTO lost data!" << std::endl; }
     
-    
-    
+    std::cout << "popReadIndex  " << buritto.m_readIndexPop << std::endl;
+    std::cout << "pushReadIndex " << buritto.m_readIndexPush << std::endl;
+    std::cout << "writeIndex    " << buritto.m_writeIndex << std::endl;
     
     pushCounter = BuRiTTO_CounterStartValue;
     BuRiTTOData overrunCounter {0};
@@ -120,6 +122,23 @@ int main(int, char**) {
     
     pushThread.join();
     popThread.join();
+    
+    std::cout << "push:" << std::endl;
+    
+    for(auto& data: buritto.pushId){
+        for(int i = 0; i < 10; i++){
+            std::cout << data.id[i] << "; ";
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "pop:" << std::endl;
+    for(auto& data: buritto.popId){
+        for(int i = 0; i < 10; i++){
+            std::cout << data.id[i] << "; ";
+        }
+        std::cout << std::endl;
+    }
     
     std::cout << pushCounter << std::endl;
     std::cout << overrunCounter + popCounter << std::endl;
