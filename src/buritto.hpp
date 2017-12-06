@@ -73,11 +73,11 @@ public:
         
         if(m_pendingBufferPop->index >= readIndex && m_pendingBufferPop->valid) {  // pendig overrun
             outValue =  m_pendingBufferPop->value;
-            m_readIndexPop = m_pendingBufferPop->index;
+            readIndex = m_pendingBufferPop->index;
         } else {
             outValue = tempVal;
-            m_readIndexPop = readIndex;
         }
+        m_readIndexPop = readIndex;
         
         return true;
     }
