@@ -22,10 +22,10 @@ private:
     PendingOverrun* m_pendingBufferPush { &m_pendingBuffers[1] };
     std::atomic<PendingOverrun*> m_pendingActive { &m_pendingBuffers[2] };
     
-    std::atomic<std::uint64_t> m_readIndexPop {0};
-    std::atomic<std::uint64_t> m_readIndexPush {0};
-    std::uint64_t m_oldReadIndexPendingPush {0};
     std::atomic<std::uint64_t> m_writeIndex {0};
+    std::atomic<std::uint64_t> m_readIndexPop {0};
+    std::uint64_t m_readIndexPush {0};
+    std::uint64_t m_oldReadIndexPendingPush {0};
     
 public:
     BuRiTTO() = default;
@@ -53,7 +53,7 @@ public:
             }
         }
         
-        data[m_writeIndex % RealCapacity] = inValue;
+        data[writeIndex % RealCapacity] = inValue;
         m_writeIndex++;
         
         return !overrun;
