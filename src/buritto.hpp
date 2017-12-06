@@ -2,13 +2,12 @@
 #include <atomic>
 
 template <class T, int capacity>
-class BuRiTTO {      // Buffer Ring To Trustily Overrun
+class BuRiTTO {      // Buffer Ring To Trustily Overrun ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe explodes
 private:
     enum {
-        Capacity = capacity,
-        RealCapacity = Capacity
+        Capacity = capacity
     };
-    T data[RealCapacity] { 0 };
+    T data[Capacity] { 0 };
     
     struct PendingOverrun {
         T value;
@@ -38,7 +37,7 @@ public:
         
         if(writeIndex - readIndex >= Capacity) {    // overrun will happen
             m_pendingBufferPush->valid = true;
-            m_pendingBufferPush->value = data[readIndex % RealCapacity];
+            m_pendingBufferPush->value = data[readIndex % Capacity];
             readIndex++;
             m_oldReadIndexPendingPush = m_pendingBufferPush->index;
             m_pendingBufferPush->index = readIndex;
@@ -53,7 +52,7 @@ public:
             }
         }
         
-        data[writeIndex % RealCapacity] = inValue;
+        data[writeIndex % Capacity] = inValue;
         m_writeIndex++;
         
         return !overrun;
@@ -65,13 +64,13 @@ public:
         
         if(readIndex == writeIndex) { return false; }
         
-        T tempVal = data[readIndex % RealCapacity];
+        T tempVal = data[readIndex % Capacity];
         m_pendingBufferPop->valid = false;
         readIndex++;
         m_pendingBufferPop->index = readIndex;
         m_pendingBufferPop = m_pendingActive.exchange(m_pendingBufferPop);
         
-        if(m_pendingBufferPop->index >= readIndex && m_pendingBufferPop->valid) {  // pendig overrun
+        if(m_pendingBufferPop->index >= readIndex) {  // pendig overrun
             outValue =  m_pendingBufferPop->value;
             readIndex = m_pendingBufferPop->index;
         } else {
