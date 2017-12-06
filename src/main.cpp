@@ -79,10 +79,6 @@ int main(int, char**) {
     if(!buritto.empty()) { std::cout << "1180 Failure: BuRiTTO should be empty!" << std::endl; }
     if(pushCounter != dataCounter) { std::cout << "1190 Failure: BuRiTTO lost data!" << std::endl; }
     
-    std::cout << "popReadIndex  " << buritto.m_readIndexPop << std::endl;
-    std::cout << "pushReadIndex " << buritto.m_readIndexPush << std::endl;
-    std::cout << "writeIndex    " << buritto.m_writeIndex << std::endl;
-    
     pushCounter = BuRiTTO_CounterStartValue;
     BuRiTTOData overrunCounter {0};
     BuRiTTOData popCounter {BuRiTTO_CounterStartValue};
@@ -123,27 +119,10 @@ int main(int, char**) {
     pushThread.join();
     popThread.join();
     
-    std::cout << "push:" << std::endl;
-    
-    for(auto& data: buritto.pushId){
-        for(int i = 0; i < 10; i++){
-            std::cout << data.id[i] << "; ";
-        }
-        std::cout << std::endl;
-    }
-    
-    std::cout << "pop:" << std::endl;
-    for(auto& data: buritto.popId){
-        for(int i = 0; i < 10; i++){
-            std::cout << data.id[i] << "; ";
-        }
-        std::cout << std::endl;
-    }
-    
-    std::cout << pushCounter << std::endl;
-    std::cout << overrunCounter + popCounter << std::endl;
-    std::cout << overrunCounter << std::endl;
-    std::cout << popCounter << std::endl;
+    std::cout << "push Counter \t" << pushCounter << std::endl;
+    std::cout << "overrun + pop \t" << overrunCounter + popCounter << std::endl;
+    std::cout << "overrun Counter \t" << overrunCounter << std::endl;
+    std::cout << "pop Counter \t" << popCounter << std::endl;
     
     for(auto& data: overrunData) {
         std::cout << data << " ";
@@ -154,5 +133,7 @@ int main(int, char**) {
         std::cout << data << " ";
     }
     std::cout << std::endl;
+    
+
     return 0;
 }

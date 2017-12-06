@@ -1,15 +1,9 @@
 #include <ctype.h>
 #include <atomic>
-#include <vector>
 
-
-// TODO: if this doesn't work
-// alternatively, make several segments; each segment has a read and write index; when the writer is full and enters a reader segment, the reader must read from the next segment; within the segments, the read index has a valid flag ... or maybe some bits define the segment, so when changing the segment, segment index and read index can be set atomically
-
-// non data loss overruning ring buffer for non nullptr pointer
 template <class T, int capacity>
 class BuRiTTO {      // Buffer Ring To Trustily Overrun
-public://private:
+private:
     enum {
         Capacity = capacity,
         RealCapacity = Capacity
@@ -30,19 +24,10 @@ public://private:
     
     std::atomic<std::uint64_t> m_readIndexPop {0};
     std::atomic<std::uint64_t> m_readIndexPush {0};
+    std::uint64_t m_oldReadIndexPendingPush {0};
     std::atomic<std::uint64_t> m_writeIndex {0};
     
-    std::atomic<std::uint64_t> counter {0};
-    
-    struct Debug {
-        std::uint64_t id[10] { 0 };
-    };
-    
 public:
-    
-    std::vector<Debug> pushId;
-    std::vector<Debug> popId;
-    
     BuRiTTO() = default;
     ~BuRiTTO() = default;
     
@@ -55,10 +40,11 @@ public:
             m_pendingBufferPush->valid = true;
             m_pendingBufferPush->value = data[readIndex % RealCapacity];
             readIndex++;
+            m_oldReadIndexPendingPush = m_pendingBufferPush->index;
             m_pendingBufferPush->index = readIndex;
             m_pendingBufferPush = m_pendingActive.exchange(m_pendingBufferPush);
             
-            if(m_pendingBufferPush->index+1 == readIndex && m_pendingBufferPush->valid) {
+            if(m_pendingBufferPush->valid && m_pendingBufferPush->index > m_oldReadIndexPendingPush) {
                 overrun = true;
                 outValue =  m_pendingBufferPush->value;
                 m_readIndexPush = readIndex;
@@ -74,12 +60,6 @@ public:
     }
     
     bool pop(T& outValue) {
-        
-//         Debug debug;
-//         
-//         debug.id[1] = counter.fetch_add(1); //368
-//         
-
         std::uint64_t writeIndex = m_writeIndex;
         std::uint64_t readIndex = m_readIndexPop;
         
@@ -91,7 +71,7 @@ public:
         m_pendingBufferPop->index = readIndex;
         m_pendingBufferPop = m_pendingActive.exchange(m_pendingBufferPop);
         
-        if(m_pendingBufferPop->index >= readIndex) {  // pendig overrun
+        if(m_pendingBufferPop->index >= readIndex && m_pendingBufferPop->valid) {  // pendig overrun
             outValue =  m_pendingBufferPop->value;
             m_readIndexPop = m_pendingBufferPop->index;
         } else {
