@@ -17,14 +17,13 @@ private:
     
     PendingOverrun m_pendingBuffers[3];
     
-    PendingOverrun* m_pendingBufferPop { &m_pendingBuffers[0] };
-    PendingOverrun* m_pendingBufferPush { &m_pendingBuffers[1] };
+    PendingOverrun* m_pendingPop { &m_pendingBuffers[0] };
+    PendingOverrun* m_pendingPush { &m_pendingBuffers[1] };
     std::atomic<PendingOverrun*> m_pendingActive { &m_pendingBuffers[2] };
     
     std::atomic<std::uint64_t> m_writeIndex {0};
     std::atomic<std::uint64_t> m_readIndexPop {0};
     std::uint64_t m_readIndexPush {0};
-    std::uint64_t m_oldReadIndexPendingPush {0};
     
 public:
     BuRiTTO() = default;
@@ -36,20 +35,20 @@ public:
         bool overrun = false;
         
         if(writeIndex - readIndex >= Capacity) {    // overrun will happen
-            m_pendingBufferPush->valid = true;
-            m_pendingBufferPush->value = data[readIndex % Capacity];
+            std::uint64_t m_oldPendingIndex = m_pendingPush->index;
+            m_pendingPush->valid = true;
+            m_pendingPush->value = data[readIndex % Capacity];
             readIndex++;
-            m_oldReadIndexPendingPush = m_pendingBufferPush->index;
-            m_pendingBufferPush->index = readIndex;
-            m_pendingBufferPush = m_pendingActive.exchange(m_pendingBufferPush);
+            m_pendingPush->index = readIndex;
+            m_pendingPush = m_pendingActive.exchange(m_pendingPush);
             
-            if(m_pendingBufferPush->valid && m_pendingBufferPush->index > m_oldReadIndexPendingPush) {
+            if(m_pendingPush->valid && m_pendingPush->index > m_oldPendingIndex) {
                 overrun = true;
-                outValue =  m_pendingBufferPush->value;
-                m_readIndexPush = readIndex;
-            }else {
-                m_readIndexPush = (readIndex > m_pendingBufferPush->index ? readIndex : m_pendingBufferPush->index);
+                outValue =  m_pendingPush->value;
+            }else if(m_pendingPush->index > readIndex) {
+                readIndex = m_pendingPush->index;
             }
+            m_readIndexPush = readIndex;
         }
         
         data[writeIndex % Capacity] = inValue;
@@ -65,14 +64,14 @@ public:
         if(readIndex == writeIndex) { return false; }
         
         T tempVal = data[readIndex % Capacity];
-        m_pendingBufferPop->valid = false;
+        m_pendingPop->valid = false;
         readIndex++;
-        m_pendingBufferPop->index = readIndex;
-        m_pendingBufferPop = m_pendingActive.exchange(m_pendingBufferPop);
+        m_pendingPop->index = readIndex;
+        m_pendingPop = m_pendingActive.exchange(m_pendingPop);
         
-        if(m_pendingBufferPop->index >= readIndex) {  // pendig overrun
-            outValue =  m_pendingBufferPop->value;
-            readIndex = m_pendingBufferPop->index;
+        if(m_pendingPop->index >= readIndex) {  // pendig overrun
+            outValue =  m_pendingPop->value;
+            readIndex = m_pendingPop->index;
         } else {
             outValue = tempVal;
         }
