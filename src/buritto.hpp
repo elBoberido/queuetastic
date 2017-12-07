@@ -9,17 +9,17 @@ private:
     };
     T data[Capacity] { 0 };
     
-    struct PendingOverrun {
+    struct Transaction {
         T value;
         std::uint64_t index { 0 };
         bool valid { false };
     };
     
-    PendingOverrun m_pendingBuffers[3];
+    Transaction m_transactions[3];
     
-    PendingOverrun* m_pendingPop { &m_pendingBuffers[0] };
-    PendingOverrun* m_pendingPush { &m_pendingBuffers[1] };
-    std::atomic<PendingOverrun*> m_pendingActive { &m_pendingBuffers[2] };
+    Transaction* m_pendingPop { &m_transactions[0] };
+    Transaction* m_pendingPush { &m_transactions[1] };
+    std::atomic<Transaction*> m_pendingActive { &m_transactions[2] };
     
     std::atomic<std::uint64_t> m_writeIndex {0};
     std::atomic<std::uint64_t> m_readIndexPop {0};
