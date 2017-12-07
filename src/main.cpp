@@ -88,7 +88,7 @@ int main(int, char**) {
     std::vector<BuRiTTOData> popData;
     
     auto pushThread = std::thread([&] {
-        for(int i = 0; i < 10000; i++) {
+        for(int i = 0; i < 1000000; i++) {
             BuRiTTOData out {BuRiTTO_InvalidValue};
             if(buritto.push(pushCounter, out) == true) {
                 if(out != BuRiTTO_InvalidValue) { std::cout << "Failure: pushThread BuRiTTO should not return data!" << std::endl; break; }
@@ -124,15 +124,38 @@ int main(int, char**) {
     std::cout << "overrun Counter \t" << overrunCounter << std::endl;
     std::cout << "pop Counter \t" << popCounter << std::endl;
     
+    int i = 0;
     for(auto& data: overrunData) {
         std::cout << data << " ";
+        i++;
+        if(i > 100) { break; }
     }
     std::cout << std::endl;
     
+    i = 0;
     for(auto& data: popData) {
         std::cout << data << " ";
+        i++;
+        if(i > 100) { break; }
     }
     std::cout << std::endl;
+    
+    int overrunIndex = 0;
+    int popIndex = 0;
+    bool dataIntact = true;
+    for(int i = 0; i < pushCounter; i++) {
+        if(overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
+            overrunIndex++;
+        } else if(popIndex < popData.size() && popData[popIndex] == i) {
+            popIndex++;
+        } else {
+            std::cout << "data loss detected at index: " << i << std::endl;
+            dataIntact = false;
+            break;
+        }
+    }
+    
+    std::cout << "Everything went fine? " << ((dataIntact && pushCounter == (overrunCounter + popCounter)) ? "yes" : "no") << std::endl;
     
 
     return 0;
