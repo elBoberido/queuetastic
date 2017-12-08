@@ -1,4 +1,3 @@
-#include <ctype.h>
 #include <atomic>
 
 template <class T, int capacity>
@@ -30,7 +29,7 @@ public:
     ~BuRiTTO() = default;
     
     bool push(const T inValue, T& outValue) {
-        std::uint64_t writeIndex = m_writeIndex;
+        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
         std::uint64_t readIndex = m_readIndexPush;
         bool overrun = false;
         
@@ -40,7 +39,7 @@ public:
             m_pendingPush->value = data[readIndex % Capacity];
             readIndex++;
             m_pendingPush->index = readIndex;
-            m_pendingPush = m_pendingActive.exchange(m_pendingPush);
+            m_pendingPush = m_pendingActive.exchange(m_pendingPush, std::memory_order_acq_rel);
             
             if(m_pendingPush->valid && m_pendingPush->index > m_oldPendingIndex) {
                 overrun = true;
@@ -52,14 +51,14 @@ public:
         }
         
         data[writeIndex % Capacity] = inValue;
-        m_writeIndex++;
+        m_writeIndex.fetch_add(1, std::memory_order_relaxed);
         
         return !overrun;
     }
     
     bool pop(T& outValue) {
-        std::uint64_t writeIndex = m_writeIndex;
-        std::uint64_t readIndex = m_readIndexPop;
+        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
+        std::uint64_t readIndex = m_readIndexPop.load(std::memory_order_relaxed);
         
         if(readIndex == writeIndex) { return false; }
         
@@ -67,7 +66,7 @@ public:
         m_pendingPop->valid = false;
         readIndex++;
         m_pendingPop->index = readIndex;
-        m_pendingPop = m_pendingActive.exchange(m_pendingPop);
+        m_pendingPop = m_pendingActive.exchange(m_pendingPop, std::memory_order_acq_rel);
         
         if(m_pendingPop->index >= readIndex) {  // pendig overrun
             outValue =  m_pendingPop->value;
@@ -75,12 +74,12 @@ public:
         } else {
             outValue = tempVal;
         }
-        m_readIndexPop = readIndex;
+        m_readIndexPop.store(readIndex, std::memory_order_relaxed);
         
         return true;
     }
     
     bool empty() {
-        return m_readIndexPop == m_writeIndex;  // this is save, we do not need to check the m_readIndexPush, because the only possibility to be greater than m_readIndexPop is when the BuRiTTO is not empty
+        return m_readIndexPop.load(std::memory_order_relaxed) == m_writeIndex.load(std::memory_order_relaxed);  // this is save, we do not need to check the m_readIndexPush, because the only possibility to be greater than m_readIndexPop is when the BuRiTTO is not empty
     }
 };

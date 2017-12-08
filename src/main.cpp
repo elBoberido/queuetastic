@@ -2,12 +2,13 @@
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <ctime>
+#include <chrono>
 
 #include "buritto.hpp"
 
 enum {
-    BURITTO_CAPACITY = 10,
-    BURITTO_REAL_CAPACITY = BURITTO_CAPACITY + 1
+    BURITTO_CAPACITY = 10
 };
 
 typedef size_t BuRiTTOData;
@@ -28,7 +29,7 @@ int main(int, char**) {
     BuRiTTOData dataCounter {BuRiTTO_CounterStartValue};
     BuRiTTOData pushCounter {BuRiTTO_CounterStartValue};
     BuRiTTOData outValue {BuRiTTO_InvalidValue};
-    for(int i = 0; i < BURITTO_REAL_CAPACITY; i++) {
+    for(int i = 0; i < BURITTO_CAPACITY + 1; i++) {
         outValue = BuRiTTO_InvalidValue;
         if(buritto.push(pushCounter, outValue) == false) { std::cout << "1010 Failure: BuRiTTO should not overrun!" << std::endl; }
         pushCounter++;
@@ -43,7 +44,7 @@ int main(int, char**) {
     if(outValue != dataCounter) { std::cout << "1050 Failure: BuRiTTO should overrun and return data!" << std::endl; }
     dataCounter++;
     
-    for(int i = 0; i < BURITTO_REAL_CAPACITY; i++) {
+    for(int i = 0; i < BURITTO_CAPACITY + 1; i++) {
         if(buritto.empty()) { std::cout << "1060 Failure: BuRiTTO should not be empty!" << std::endl; }
         outValue = BuRiTTO_InvalidValue;
         if(buritto.pop(outValue) == false) { std::cout << "1070 Failure: BuRiTTO should return data!" << std::endl; }
@@ -56,7 +57,7 @@ int main(int, char**) {
     if(buritto.pop(outValue) == true) { std::cout << "1100 Failure: BuRiTTO should not return data!" << std::endl; }
     if(outValue != BuRiTTO_InvalidValue) { std::cout << "1110 Failure: BuRiTTO should not return data!" << std::endl; }
     
-    for(int i = 0; i < 3 * BURITTO_REAL_CAPACITY; i++) {
+    for(int i = 0; i < 3 * (BURITTO_CAPACITY + 1); i++) {
         outValue = BuRiTTO_InvalidValue;
         if(buritto.push(pushCounter, outValue) == true) {
             if(outValue != BuRiTTO_InvalidValue) { std::cout << "1120 Failure: BuRiTTO should not return data!" << std::endl; }
@@ -82,10 +83,12 @@ int main(int, char**) {
     pushCounter = BuRiTTO_CounterStartValue;
     BuRiTTOData overrunCounter {0};
     BuRiTTOData popCounter {BuRiTTO_CounterStartValue};
-    bool pushThreadFinished {false};
+    std::atomic<bool> pushThreadFinished {false};
     
     std::vector<BuRiTTOData> overrunData;
     std::vector<BuRiTTOData> popData;
+    
+    auto startTime = std::chrono::high_resolution_clock::now();
     
     auto pushThread = std::thread([&] {
         for(int i = 0; i < 1000000; i++) {
@@ -104,7 +107,7 @@ int main(int, char**) {
     });
     
     auto popThread = std::thread([&] {
-        while(!pushThreadFinished || !buritto.empty()) {
+        while(!pushThreadFinished.load(std::memory_order_relaxed) || !buritto.empty()) {
             BuRiTTOData out {BuRiTTO_InvalidValue};
             if(buritto.pop(out) == true) {
                 if(out == BuRiTTO_InvalidValue) { std::cout << "Failure: popThread BuRiTTO should return data!" << std::endl; break; }
@@ -118,6 +121,9 @@ int main(int, char**) {
     
     pushThread.join();
     popThread.join();
+    
+    auto elapsedTime = std::chrono::high_resolution_clock::now() - startTime;
+    std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds> (elapsedTime).count() << "ms" << std::endl;
     
     std::cout << "push Counter \t" << pushCounter << std::endl;
     std::cout << "overrun + pop \t" << overrunCounter + popCounter << std::endl;
@@ -140,10 +146,10 @@ int main(int, char**) {
     }
     std::cout << std::endl;
     
-    int overrunIndex = 0;
-    int popIndex = 0;
+    size_t overrunIndex = 0;
+    size_t popIndex = 0;
     bool dataIntact = true;
-    for(int i = 0; i < pushCounter; i++) {
+    for(size_t i = 0; i < pushCounter; i++) {
         if(overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
             overrunIndex++;
         } else if(popIndex < popData.size() && popData[popIndex] == i) {
