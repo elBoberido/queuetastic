@@ -6,7 +6,7 @@ private:
     enum {
         Capacity = capacity
     };
-    T data[Capacity] { 0 };
+    T data[Capacity];
     
     struct Transaction {
         T value;
