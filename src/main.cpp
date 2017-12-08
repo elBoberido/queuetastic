@@ -130,6 +130,7 @@ int main(int, char**) {
     std::cout << "overrun Counter \t" << overrunCounter << std::endl;
     std::cout << "pop Counter \t" << popCounter << std::endl;
     
+    std::cout << "overrun values: \t";
     int i = 0;
     for(auto& data: overrunData) {
         std::cout << data << " ";
@@ -138,6 +139,7 @@ int main(int, char**) {
     }
     std::cout << std::endl;
     
+    std::cout << "pop values: \t";
     i = 0;
     for(auto& data: popData) {
         std::cout << data << " ";
