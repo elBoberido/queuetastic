@@ -151,7 +151,7 @@ int main(int, char**) {
     size_t overrunIndex = 0;
     size_t popIndex = 0;
     bool dataIntact = true;
-    for(size_t i = 0; i < pushCounter; i++) {
+    for(size_t i = BuRiTTO_CounterStartValue; i < pushCounter; i++) {
         if(overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
             overrunIndex++;
         } else if(popIndex < popData.size() && popData[popIndex] == i) {
