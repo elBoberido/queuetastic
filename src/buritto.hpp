@@ -19,6 +19,7 @@
  */
 
 #include <atomic>
+#include <cstdint>
 
 template <class T, int capacity>
 class BuRiTTO {      // Buffer Ring To Trustily Overrun ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe implodes
