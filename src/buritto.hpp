@@ -50,8 +50,8 @@ public:
     ~BuRiTTO() = default;
     
     bool push(const T inValue, T& outValue) {
-        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
         std::uint64_t readIndex = m_readIndexPush;
+        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
         bool overrun = false;
         
         if(writeIndex - readIndex >= Capacity) {    // overrun will happen
@@ -60,7 +60,7 @@ public:
             m_pendingPush->value = data[readIndex % Capacity];
             readIndex++;
             m_pendingPush->index = readIndex;
-            m_pendingPush = m_pendingActive.exchange(m_pendingPush, std::memory_order_acq_rel);
+            m_pendingPush = m_pendingActive.exchange(m_pendingPush, std::memory_order_release);
             
             if(m_pendingPush->valid && m_pendingPush->index > m_oldPendingIndex) {
                 overrun = true;
@@ -72,14 +72,14 @@ public:
         }
         
         data[writeIndex % Capacity] = inValue;
-        m_writeIndex.fetch_add(1, std::memory_order_relaxed);
+        m_writeIndex.fetch_add(1, std::memory_order_release);
         
         return !overrun;
     }
     
     bool pop(T& outValue) {
-        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
         std::uint64_t readIndex = m_readIndexPop.load(std::memory_order_relaxed);
+        std::uint64_t writeIndex = m_writeIndex.load(std::memory_order_relaxed);
         
         if(readIndex == writeIndex) { return false; }
         
@@ -87,7 +87,7 @@ public:
         m_pendingPop->valid = false;
         readIndex++;
         m_pendingPop->index = readIndex;
-        m_pendingPop = m_pendingActive.exchange(m_pendingPop, std::memory_order_acq_rel);
+        m_pendingPop = m_pendingActive.exchange(m_pendingPop, std::memory_order_release);
         
         if(m_pendingPop->index >= readIndex) {  // pendig overrun
             outValue =  m_pendingPop->value;
