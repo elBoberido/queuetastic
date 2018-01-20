@@ -31,7 +31,7 @@ int main(int, char**) {
     BuRiTTOData outValue {BuRiTTO_InvalidValue};
     for(int i = 0; i < BURITTO_CAPACITY + 1; i++) {
         outValue = BuRiTTO_InvalidValue;
-        if(buritto.push(pushCounter, outValue) == false) { std::cout << "1010 Failure: BuRiTTO should not overrun!" << std::endl; }
+        if(buritto.push(pushCounter, outValue) == false) { std::cout << "1010 Failure: BuRiTTO should not overflow!" << std::endl; }
         pushCounter++;
         if(outValue != BuRiTTO_InvalidValue) { std::cout << "1020 Failure: BuRiTTO should not return data!" << std::endl; }
         
@@ -39,9 +39,9 @@ int main(int, char**) {
     }
     
     outValue = BuRiTTO_InvalidValue;
-    if(buritto.push(pushCounter, outValue) == true) { std::cout << "1040 Failure: BuRiTTO should overrun!" << std::endl; }
+    if(buritto.push(pushCounter, outValue) == true) { std::cout << "1040 Failure: BuRiTTO should overflow!" << std::endl; }
     pushCounter++;
-    if(outValue != dataCounter) { std::cout << "1050 Failure: BuRiTTO should overrun and return data!" << std::endl; }
+    if(outValue != dataCounter) { std::cout << "1050 Failure: BuRiTTO should overflow and return data!" << std::endl; }
     dataCounter++;
     
     for(int i = 0; i < BURITTO_CAPACITY + 1; i++) {
@@ -84,24 +84,25 @@ int main(int, char**) {
     int loops = maxLoops;
     while(loops-- > 0) {
         pushCounter = BuRiTTO_CounterStartValue;
-        BuRiTTOData overrunCounter {0};
+        BuRiTTOData overflowCounter {0};
         BuRiTTOData popCounter {BuRiTTO_CounterStartValue};
         std::atomic<bool> pushThreadFinished {false};
         
-        std::vector<BuRiTTOData> overrunData;
+        std::vector<BuRiTTOData> overflowData;
         std::vector<BuRiTTOData> popData;
         
         auto startTime = std::chrono::high_resolution_clock::now();
         
         auto pushThread = std::thread([&] {
+            std::cout << "Thread push: on CPU " << sched_getcpu() << std::endl;
             for(int i = 0; i < 1000000; i++) {
                 BuRiTTOData out {BuRiTTO_InvalidValue};
                 if(buritto.push(pushCounter, out) == true) {
                     if(out != BuRiTTO_InvalidValue) { std::cout << "Failure: pushThread BuRiTTO should not return data!" << std::endl; break; }
                 }else {
                     if(out == BuRiTTO_InvalidValue) { std::cout << "Failure: pushThread BuRiTTO should return data!" << std::endl; break; }
-                    overrunCounter++;
-                    overrunData.push_back(out);
+                    overflowCounter++;
+                    overflowData.push_back(out);
                 }
                 pushCounter++;
             }
@@ -110,6 +111,7 @@ int main(int, char**) {
         });
         
         auto popThread = std::thread([&] {
+            std::cout << "Thread pop: on CPU " << sched_getcpu() << std::endl;
             while(!pushThreadFinished.load(std::memory_order_relaxed) || !buritto.empty()) {
                 BuRiTTOData out {BuRiTTO_InvalidValue};
                 if(buritto.pop(out) == true) {
@@ -122,6 +124,16 @@ int main(int, char**) {
             }
         });
         
+//         // set CPU affinity
+//         // fastest option is when both threads run on the same core but with hyperthreading
+//         cpu_set_t cpuset;
+//         CPU_ZERO(&cpuset);
+//         CPU_SET(0, &cpuset);
+//         pthread_setaffinity_np(pushThread.native_handle(), sizeof(cpu_set_t), &cpuset);
+//         CPU_ZERO(&cpuset);
+//         CPU_SET(1, &cpuset);
+//         pthread_setaffinity_np(popThread.native_handle(), sizeof(cpu_set_t), &cpuset);
+        
         pushThread.join();
         popThread.join();
         
@@ -129,14 +141,14 @@ int main(int, char**) {
         auto elapsedTime = std::chrono::high_resolution_clock::now() - startTime;
         std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds> (elapsedTime).count() << "ms" << std::endl;
         
-        std::cout << "push Counter \t" << pushCounter << std::endl;
-        std::cout << "overrun + pop \t" << overrunCounter + popCounter << std::endl;
-        std::cout << "overrun Counter \t" << overrunCounter << std::endl;
-        std::cout << "pop Counter \t" << popCounter << std::endl;
+        std::cout << "push counter \t" << pushCounter << std::endl;
+        std::cout << "overflow + pop \t" << overflowCounter + popCounter << std::endl;
+        std::cout << "overflow counter \t" << overflowCounter << std::endl;
+        std::cout << "pop counter \t" << popCounter << std::endl;
         
-        std::cout << "overrun values: \t";
+        std::cout << "overflow values: \t";
         int i = 0;
-        for(auto& data: overrunData) {
+        for(auto& data: overflowData) {
             std::cout << data << " ";
             i++;
             if(i > 100) { break; }
@@ -152,12 +164,12 @@ int main(int, char**) {
         }
         std::cout << std::endl;
         
-        size_t overrunIndex = 0;
+        size_t overflowIndex = 0;
         size_t popIndex = 0;
         bool dataIntact = true;
         for(size_t i = BuRiTTO_CounterStartValue; i < pushCounter; i++) {
-            if(overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
-                overrunIndex++;
+            if(overflowIndex < overflowData.size() && overflowData[overflowIndex] == i) {
+                overflowIndex++;
             } else if(popIndex < popData.size() && popData[popIndex] == i) {
                 popIndex++;
             } else {
@@ -167,7 +179,7 @@ int main(int, char**) {
             }
         }
         
-        bool success = dataIntact && pushCounter == (overrunCounter + popCounter);
+        bool success = dataIntact && pushCounter == (overflowCounter + popCounter);
         std::cout << "Everything went fine? " << (success ? "yes" : "no") << std::endl;
         std::cout << "=========================" << std::endl;
         
