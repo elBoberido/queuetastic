@@ -79,7 +79,7 @@ public:
         std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_relaxed);
         bool overflow = false;
         
-        if(writeCounter - readCounter >= Capacity) {    // overflow will happen
+        if(writeCounter - readCounter >= Capacity) {    // overflow might happen
             std::uint64_t oldPendingCounter = m_ta[m_taOvflow].counter;
             m_ta[m_taOvflow].source = TaSource::PUSH;
             m_ta[m_taOvflow].value = m_data[index<Capacity>(readCounter)];
@@ -87,7 +87,7 @@ public:
             m_ta[m_taOvflow].counter = readCounter;
             m_taOvflow = m_taPending.exchange(m_taOvflow, std::memory_order_acq_rel);   //TODO: why not release
             
-            if(m_ta[m_taOvflow].source == TaSource::PUSH && m_ta[m_taOvflow].counter > oldPendingCounter) {
+            if(m_ta[m_taOvflow].source == TaSource::PUSH && m_ta[m_taOvflow].counter > oldPendingCounter) { // overflow happend
                 overflow = true;
                 outValue =  m_ta[m_taOvflow].value;
             }else if(m_ta[m_taOvflow].counter > readCounter) {
