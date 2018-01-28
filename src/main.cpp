@@ -2,7 +2,6 @@
 #include <atomic>
 #include <thread>
 #include <vector>
-#include <ctime>
 #include <chrono>
 
 #include "buritto.hpp"

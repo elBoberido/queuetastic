@@ -54,18 +54,23 @@ private:
         PUSH
     };
     
+    // transactions are used for read counter synchronization and overflow handling
     struct Transaction {
         T value;
         std::uint64_t counter { 0 };
         TaSource source { TaSource::POP };
     };
     
+    // push and pop thread have a transaction they can operate on and the third transaction object is an exchange object
     Transaction m_ta[3];
     
+    // transactions idices for m_ta
+    // pop is used in the pop thread, overflow in the push thread and pending to exchange transactions
     std::uint8_t m_taPop { 0 };
-    std::uint8_t m_taOvflow { 1 };
+    std::uint8_t m_taOverflow { 1 };
     std::atomic<std::uint8_t> m_taPending { 2 };
     
+    // consecutive counter; in conjunction with Capacity this is used to calculate the access index to m_data
     std::atomic<std::uint64_t> m_writeCounter { 0 };
     std::atomic<std::uint64_t> m_readCounterPop { 0 };
     std::uint64_t m_readCounterPush { 0 };
@@ -80,18 +85,18 @@ public:
         bool overflow = false;
         
         if(writeCounter - readCounter >= Capacity) {    // overflow might happen
-            std::uint64_t oldPendingCounter = m_ta[m_taOvflow].counter;
-            m_ta[m_taOvflow].source = TaSource::PUSH;
-            m_ta[m_taOvflow].value = m_data[index<Capacity>(readCounter)];
+            std::uint64_t oldPendingCounter = m_ta[m_taOverflow].counter;
+            m_ta[m_taOverflow].source = TaSource::PUSH;
+            m_ta[m_taOverflow].value = m_data[index<Capacity>(readCounter)];
             readCounter++;
-            m_ta[m_taOvflow].counter = readCounter;
-            m_taOvflow = m_taPending.exchange(m_taOvflow, std::memory_order_acq_rel);   //TODO: why not release
+            m_ta[m_taOverflow].counter = readCounter;
+            m_taOverflow = m_taPending.exchange(m_taOverflow, std::memory_order_acq_rel);   //TODO: why not release
             
-            if(m_ta[m_taOvflow].source == TaSource::PUSH && m_ta[m_taOvflow].counter > oldPendingCounter) { // overflow happend
+            if(m_ta[m_taOverflow].source == TaSource::PUSH && m_ta[m_taOverflow].counter > oldPendingCounter) { // overflow happend
                 overflow = true;
-                outValue =  m_ta[m_taOvflow].value;
-            }else if(m_ta[m_taOvflow].counter > readCounter) {
-                readCounter = m_ta[m_taOvflow].counter;
+                outValue =  m_ta[m_taOverflow].value;
+            }else if(m_ta[m_taOverflow].counter > readCounter) {
+                readCounter = m_ta[m_taOverflow].counter;
             }
             m_readCounterPush = readCounter;
         }
