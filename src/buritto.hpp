@@ -1,5 +1,5 @@
 /*
- * Wait-free BuRiTTO (Buffer Ring To Trustily Overflow)
+ * Wait-free BuRiTTO (Buffer Ring To Trustily Overrun)
  * Copyright (C) 2018  Mathias Kraus <k.hias@gmx.de>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -45,7 +45,7 @@ index(std::uint64_t counter)
 }
 
 template <class T, std::uint32_t Capacity>
-class BuRiTTO {      // Buffer Ring To Trustily Overflow ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe implodes
+class BuRiTTO {      // Buffer Ring To Trustily Overrun ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe implodes
 private:
     T m_data[Capacity];
     
@@ -54,7 +54,7 @@ private:
         PUSH
     };
     
-    // transactions are used for read counter synchronization and overflow handling
+    // transactions are used for read counter synchronization and overrun handling
     struct Transaction {
         T value;
         std::uint64_t counter { 0 };
@@ -65,9 +65,9 @@ private:
     Transaction m_ta[3];
     
     // transactions idices for m_ta
-    // pop is used in the pop thread, overflow in the push thread and pending to exchange transactions
+    // pop is used in the pop thread, overrun in the push thread and pending to exchange transactions
     std::uint8_t m_taPop { 0 };
-    std::uint8_t m_taOverflow { 1 };
+    std::uint8_t m_taOverrun { 1 };
     std::atomic<std::uint8_t> m_taPending { 2 };
     
     // consecutive counter; in conjunction with Capacity this is used to calculate the access index to m_data
@@ -82,21 +82,21 @@ public:
     bool push(const T inValue, T& outValue) {
         std::uint64_t readCounter = m_readCounterPush;
         std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_relaxed);
-        bool overflow = false;
+        bool overrun = false;
         
-        if(writeCounter - readCounter >= Capacity) {    // overflow might happen
-            std::uint64_t oldPendingCounter = m_ta[m_taOverflow].counter;
-            m_ta[m_taOverflow].source = TaSource::PUSH;
-            m_ta[m_taOverflow].value = m_data[index<Capacity>(readCounter)];
+        if(writeCounter - readCounter >= Capacity) {    // overrun might happen
+            std::uint64_t oldPendingCounter = m_ta[m_taOverrun].counter;
+            m_ta[m_taOverrun].source = TaSource::PUSH;
+            m_ta[m_taOverrun].value = m_data[index<Capacity>(readCounter)];
             readCounter++;
-            m_ta[m_taOverflow].counter = readCounter;
-            m_taOverflow = m_taPending.exchange(m_taOverflow, std::memory_order_acq_rel);   //TODO: why not release
+            m_ta[m_taOverrun].counter = readCounter;
+            m_taOverrun = m_taPending.exchange(m_taOverrun, std::memory_order_acq_rel);   //TODO: why not release
             
-            if(m_ta[m_taOverflow].source == TaSource::PUSH && m_ta[m_taOverflow].counter > oldPendingCounter) { // overflow happend
-                overflow = true;
-                outValue =  m_ta[m_taOverflow].value;
-            }else if(m_ta[m_taOverflow].counter > readCounter) {
-                readCounter = m_ta[m_taOverflow].counter;
+            if(m_ta[m_taOverrun].source == TaSource::PUSH && m_ta[m_taOverrun].counter > oldPendingCounter) { // overrun happend
+                overrun = true;
+                outValue =  m_ta[m_taOverrun].value;
+            }else if(m_ta[m_taOverrun].counter > readCounter) {
+                readCounter = m_ta[m_taOverrun].counter;
             }
             m_readCounterPush = readCounter;
         }
@@ -104,7 +104,7 @@ public:
         m_data[index<Capacity>(writeCounter)] = inValue;
         m_writeCounter.fetch_add(1, std::memory_order_release);
         
-        return !overflow;
+        return !overrun;
     }
     
     bool pop(T& outValue) {
@@ -119,7 +119,7 @@ public:
         m_ta[m_taPop].counter = readCounter;
         m_taPop = m_taPending.exchange(m_taPop, std::memory_order_acq_rel); //TODO: why not release
         
-        if(m_ta[m_taPop].counter >= readCounter) {  // pendig overflow ... needs to be >= because the push thread might already have overwritten the value in m_data we stored in outValue
+        if(m_ta[m_taPop].counter >= readCounter) {  // pendig overrun ... needs to be >= because the push thread might already have overwritten the value in m_data we stored in outValue
             outValue =  m_ta[m_taPop].value;
             readCounter = m_ta[m_taPop].counter;
         }
