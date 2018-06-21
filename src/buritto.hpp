@@ -18,8 +18,12 @@
  *
  */
 
+#ifndef _BURITTO_HPP_
+#define _BURITTO_HPP_
+
 #include <atomic>
 #include <cstdint>
+#include <type_traits>
 
 constexpr bool isPowerOfTwo(std::uint32_t v) {
     return v && ((v & (v - 1)) == 0);
@@ -90,7 +94,7 @@ public:
             m_ta[m_taOverrun].value = m_data[index<Capacity>(readCounter)];
             readCounter++;
             m_ta[m_taOverrun].counter = readCounter;
-            m_taOverrun = m_taPending.exchange(m_taOverrun, std::memory_order_acq_rel);   //TODO: why not release
+            m_taOverrun = m_taPending.exchange(m_taOverrun, std::memory_order_acq_rel);
             
             if(m_ta[m_taOverrun].source == TaSource::PUSH && m_ta[m_taOverrun].counter > oldPendingCounter) { // overrun happend
                 overrun = true;
@@ -102,14 +106,14 @@ public:
         }
         
         m_data[index<Capacity>(writeCounter)] = inValue;
-        m_writeCounter.fetch_add(1, std::memory_order_release);
+        m_writeCounter.store(++writeCounter, std::memory_order_release);
         
         return !overrun;
     }
     
     bool pop(T& outValue) {
         std::uint64_t readCounter = m_readCounterPop.load(std::memory_order_relaxed);
-        std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_acquire);    //TODO: why not relaxed
+        std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_acquire);
         
         if(readCounter == writeCounter) { return false; }
         
@@ -117,7 +121,7 @@ public:
         m_ta[m_taPop].source = TaSource::POP;
         readCounter++;
         m_ta[m_taPop].counter = readCounter;
-        m_taPop = m_taPending.exchange(m_taPop, std::memory_order_acq_rel); //TODO: why not release
+        m_taPop = m_taPending.exchange(m_taPop, std::memory_order_acq_rel);
         
         if(m_ta[m_taPop].counter >= readCounter) {  // pendig overrun ... needs to be >= because the push thread might already have overwritten the value in m_data we stored in outValue
             outValue =  m_ta[m_taPop].value;
@@ -133,3 +137,5 @@ public:
         return m_readCounterPop.load(std::memory_order_relaxed) == m_writeCounter.load(std::memory_order_relaxed);  // this is save, we do not need to check the m_readCounterPush, because the only possibility to be greater than m_readCounterPop is when the BuRiTTO is not empty
     }
 };
+
+#endif // _BURITTO_HPP_
