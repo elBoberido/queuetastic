@@ -25,30 +25,30 @@
 #include <cstdint>
 #include <type_traits>
 
-constexpr bool isPowerOfTwo(std::uint32_t v) {
+constexpr bool isPowerOfTwo(uint32_t v) {
     return v && ((v & (v - 1)) == 0);
 }
 
 // this is only correct if v is power of 2
-constexpr std::uint32_t mask(std::uint32_t v) {
+constexpr uint32_t mask(uint32_t v) {
     return v - 1;
 }
 
-template<std::uint32_t Capacity>
-typename std::enable_if<isPowerOfTwo(Capacity), std::uint32_t>::type
-index(std::uint64_t counter)
+template<uint32_t Capacity>
+typename std::enable_if<isPowerOfTwo(Capacity), uint32_t>::type
+index(uint64_t counter)
 {
-    return static_cast<std::uint32_t>(counter & mask(Capacity));
+    return static_cast<uint32_t>(counter & mask(Capacity));
 }
 
-template<std::uint32_t Capacity>
-typename std::enable_if<!isPowerOfTwo(Capacity), std::uint32_t>::type
-index(std::uint64_t counter)
+template<uint32_t Capacity>
+typename std::enable_if<!isPowerOfTwo(Capacity), uint32_t>::type
+index(uint64_t counter)
 {
-    return static_cast<std::uint32_t>(counter % Capacity);
+    return static_cast<uint32_t>(counter % Capacity);
 }
 
-template <class T, std::uint32_t Capacity>
+template <class T, uint32_t Capacity>
 class BuRiTTO {      // Buffer Ring To Trustily Overrun ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe implodes
 private:
     T m_data[Capacity];
@@ -61,7 +61,7 @@ private:
     // transactions are used for read counter synchronization and overrun handling
     struct Transaction {
         T value;
-        std::uint64_t counter { 0 };
+        uint64_t counter { 0 };
         TaSource source { TaSource::POP };
     };
     
@@ -70,26 +70,26 @@ private:
     
     // transactions idices for m_ta
     // pop is used in the pop thread, overrun in the push thread and pending to exchange transactions
-    std::uint8_t m_taPop { 0 };
-    std::uint8_t m_taOverrun { 1 };
-    std::atomic<std::uint8_t> m_taPending { 2 };
+    uint8_t m_taPop { 0 };
+    uint8_t m_taOverrun { 1 };
+    std::atomic<uint8_t> m_taPending { 2 };
     
     // consecutive counter; in conjunction with Capacity this is used to calculate the access index to m_data
-    std::atomic<std::uint64_t> m_writeCounter { 0 };
-    std::atomic<std::uint64_t> m_readCounterPop { 0 };
-    std::uint64_t m_readCounterPush { 0 };
+    std::atomic<uint64_t> m_writeCounter { 0 };
+    std::atomic<uint64_t> m_readCounterPop { 0 };
+    uint64_t m_readCounterPush { 0 };
     
 public:
     BuRiTTO() = default;
     ~BuRiTTO() = default;
     
     bool push(const T inValue, T& outValue) {
-        std::uint64_t readCounter = m_readCounterPush;
-        std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_relaxed);
+        uint64_t readCounter = m_readCounterPush;
+        uint64_t writeCounter = m_writeCounter.load(std::memory_order_relaxed);
         bool overrun = false;
         
         if(writeCounter - readCounter >= Capacity) {    // overrun might happen
-            std::uint64_t oldPendingCounter = m_ta[m_taOverrun].counter;
+            uint64_t oldPendingCounter = m_ta[m_taOverrun].counter;
             m_ta[m_taOverrun].source = TaSource::PUSH;
             m_ta[m_taOverrun].value = m_data[index<Capacity>(readCounter)];
             readCounter++;
@@ -112,8 +112,8 @@ public:
     }
     
     bool pop(T& outValue) {
-        std::uint64_t readCounter = m_readCounterPop.load(std::memory_order_relaxed);
-        std::uint64_t writeCounter = m_writeCounter.load(std::memory_order_acquire);
+        uint64_t readCounter = m_readCounterPop.load(std::memory_order_relaxed);
+        uint64_t writeCounter = m_writeCounter.load(std::memory_order_acquire);
         
         if(readCounter == writeCounter) { return false; }
         
