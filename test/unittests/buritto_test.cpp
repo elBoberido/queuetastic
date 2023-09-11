@@ -244,7 +244,7 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
 }
 
 TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
-    constexpr std::uint32_t ContainerCapacity { 1000 };
+    constexpr std::uint32_t ContainerCapacity { 100000 };
     using DataType = size_t;
     using BuRiTTO = BuRiTTO<DataType, ContainerCapacity>;
     
@@ -286,13 +286,19 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
     }
     REQUIRE( sum == expectedSum );
     
-    
+
     BuRiTTO buritto;
+    bool moreThanOneBenchmarkIteration = false;
     BENCHMARK("Fill BuRiTTO without overrun") {
         for(auto i = 0u; i < ContainerCapacity; i++) {
-            buritto.push(i, outValue);
+            // overrun happens if measured time for one iteration is to short and the benchmark runs several iterations
+            moreThanOneBenchmarkIteration |= !buritto.push(i, outValue);
         }
     }
+
+    REQUIRE( moreThanOneBenchmarkIteration == false );
+    if(moreThanOneBenchmarkIteration) { buritto.pop(outValue); }
+
     sum = 0;
     outValue = 0;
     while(buritto.pop(outValue)) {
@@ -318,6 +324,5 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
         sum += outValue;
         outValue = 0;
     }
-    // this will fail it there are more than one iterations at the benchmark
     REQUIRE( sum == expectedSum );
 }
