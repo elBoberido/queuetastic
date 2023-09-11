@@ -1,3 +1,5 @@
+# Theory of Operation
+
 - three transaction objects are stored in an array
 - one transaction object contains the current pending transaction;
   the index to this object is stored in an atomic
@@ -125,4 +127,6 @@
                             ------      ------          ------
 
 
+# License of this document
 
+CC-BY-NC-SA 4.0
