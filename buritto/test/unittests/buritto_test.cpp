@@ -3,6 +3,7 @@
 
 #include "buritto.hpp"
 
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
 #include "catch.hpp"
 
 #include <condition_variable>
@@ -198,7 +199,7 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
         
         pushThread.join();
         popThread.join();
-    }
+    };
     
     auto elapsedTime = std::chrono::high_resolution_clock::now() - startTime;
     std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds> (elapsedTime).count() << "ms" << std::endl;
@@ -268,7 +269,7 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
         for(auto i = 0u; i < ContainerCapacity; i++) {
             carray[i] = i;
         }
-    }
+    };
     sum = 0;
     for(auto& element: carray) {
         sum += element;
@@ -281,7 +282,8 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
             std::lock_guard<std::mutex> lock(mtx);
             carray[i] = i;
         }
-    }
+    };
+
     sum = 0;
     for(auto& element: carray) {
         sum += element;
@@ -296,7 +298,7 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
             // overrun happens if measured time for one iteration is to short and the benchmark runs several iterations
             moreThanOneBenchmarkIteration |= !buritto.push(i, outValue);
         }
-    }
+    };
 
     REQUIRE( moreThanOneBenchmarkIteration == false );
     if(moreThanOneBenchmarkIteration) { buritto.pop(outValue); }
@@ -318,7 +320,7 @@ TEST_CASE("BuRiTTO - Benchmark", "[!benchmark]") {
         for(auto i = 0u; i < ContainerCapacity; i++) {
             buritto.push(i, outValue);
         }
-    }
+    };
     buritto.pop(outValue); // this is due to the fact the the buritto holds one value in the pending transaction
     sum = 0;
     outValue = 0;
