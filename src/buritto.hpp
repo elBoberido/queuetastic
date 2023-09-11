@@ -1,6 +1,6 @@
 /*
  * Wait-free BuRiTTO (Buffer Ring To Trustily Overrun)
- * Copyright (C) 2018  Mathias Kraus <k.hias@gmx.de>
+ * Copyright (C) 2018  Mathias Kraus <elboberido@m-hias.de>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,10 @@ index(uint64_t counter)
 template <class T, uint32_t Capacity>
 class BuRiTTO {      // Buffer Ring To Trustily Overrun ... well, at least for almost 585 years with 1 push per nanosecond ... then the universe implodes
 private:
+    //TODO use a second array with of uint64_t m_slots[static_cast<uint64_t>(Capacity) + 2];
+    //     m_data then holds all the data (>8 Byte and non trivialy copyable possible)
+    //     m_slots are the "pointer" to the actual data which are also in the Transaction::value
+    //     m_data will only be accessed once the ownership of the slot belongs to the thread
     T m_data[Capacity];
     
     enum class TaSource {
