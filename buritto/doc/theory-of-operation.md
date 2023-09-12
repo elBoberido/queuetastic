@@ -9,8 +9,8 @@
   to their transaction object and do an atomic exchange with the pendig object
 - after the exchange, they check if their view of the world was right and correct it if necessary
 
-== terminology ========================================================================================================
-
+## Terminology
+```
                                                                ------
                                                               | push |
                                                               | r=0  | <- transaction pop
@@ -28,9 +28,13 @@
                                               read counter -> | r=1  | <- transaction overrun
                                                      value -> | v=#  |
                                                                ------
+```
 
-== we have a BuRiTTO with some content ================================================================================
-== push ===============================================================================================================
+## Operation
+
+- We have a BuRiTTO with some content
+- push
+```
 
                                      right before    right after
                            initial     exchange        exchange
@@ -52,7 +56,9 @@
        actual check is     | v=#  |    | v=B  |        | v=#  |             -> no overrun
        source is not push   ------      ------          ------
        and counter sync is done when counter from transaction is larger than local copy
-== push ===============================================================================================================
+```
+- push
+```
 
                                       right before    right after
                            initial     exchange        exchange
@@ -75,8 +81,9 @@
                             ------   \  ------          ------    n > o?    not larger than than the old one
                                       \                                     -> no overrun
                                        -------------------------> o = 2
-
-== scenario 1: push ===================================================================================================
+```
+- scenario 1: push
+```
 
                                       right before    right after
                            initial     exchange        exchange
@@ -99,9 +106,9 @@
                             ------   \  ------          ------    n > o?    larger than than the old one
                                       \                                     -> overrun; return C
                                        -------------------------> o = 2
-
-== scenario 2: pop ====================================================================================================
-
+```
+- scenario 2: pop
+```
                                       right before    right after
                            initial     exchange        exchange
 
@@ -125,7 +132,7 @@
                            | r=2  |    | r=2  |        | r=2  |
                            | v=B  |    | v=B  |        | v=B  |
                             ------      ------          ------
-
+```
 
 # License of this document
 
