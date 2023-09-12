@@ -17,7 +17,7 @@ SCENARIO("BuRiTTO - Unittest") {
     using BuRiTTO = BuRiTTO<DataType, ContainerCapacity>;
     
     constexpr DataType BuRiTTO_CounterStartValue { 0 };
-    constexpr DataType BuRiTTO_InvalidValue { -1u };
+    constexpr DataType BuRiTTO_InvalidValue { -1ULL };
     
     DataType dataCounter { BuRiTTO_CounterStartValue };
     DataType pushCounter { BuRiTTO_CounterStartValue };
