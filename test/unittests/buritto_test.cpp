@@ -115,11 +115,12 @@ SCENARIO("BuRiTTO - Unittest") {
 
 TEST_CASE("BuRiTTO - Stress", "[.stress]") {
     constexpr std::uint32_t ContainerCapacity { 10 };
-    using DataType = size_t;
+    using DataType = uint64_t;
     using BuRiTTO = BuRiTTO<DataType, ContainerCapacity>;
     
+    constexpr uint64_t NUMBER_OF_PUSHES {1000000};
     constexpr DataType BuRiTTO_CounterStartValue { 0 };
-    constexpr DataType BuRiTTO_InvalidValue { -1u };
+    constexpr DataType BuRiTTO_InvalidValue { -1ull };
     
     DataType dataCounter { BuRiTTO_CounterStartValue };
     DataType pushCounter { BuRiTTO_CounterStartValue };
@@ -133,19 +134,22 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
     std::vector<DataType> overrunData;
     std::vector<DataType> popData;
     
+    std::atomic<uint64_t> threadRunCount {0};
     std::mutex mtx;
     std::condition_variable condVar;
     bool run { false };
     
-    auto startTime = std::chrono::high_resolution_clock::now();
-    
     auto pushThread = std::thread([&] {
         {
             std::unique_lock<std::mutex> lock(mtx);
+            threadRunCount.fetch_add(1);
             condVar.wait(lock, [&]() -> bool { return run; });
         }
-        std::cout << "Thread push: on CPU " << sched_getcpu() << std::endl;
-        for(int i = 0; i < 1000000; i++) {
+        std::string msg {"Thread push: on CPU "};
+        msg += std::to_string(sched_getcpu());
+        msg += "\n";
+        std::cout << msg << std::flush;
+        for(uint64_t i = 0; i < NUMBER_OF_PUSHES; i++) {
             DataType out {BuRiTTO_InvalidValue};
             if(buritto.push(pushCounter, out) == true) {
                 if(out != BuRiTTO_InvalidValue) { std::cout << "Failure: pushThread BuRiTTO should not return data!" << std::endl; break; }
@@ -163,9 +167,13 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
     auto popThread = std::thread([&] {
         {
             std::unique_lock<std::mutex> lock(mtx);
+            threadRunCount.fetch_add(1);
             condVar.wait(lock, [&]() -> bool { return run; });
         }
-        std::cout << "Thread pop: on CPU " << sched_getcpu() << std::endl;
+        std::string msg {"Thread pop: on CPU "};
+        msg += std::to_string(sched_getcpu());
+        msg += "\n";
+        std::cout << msg << std::flush;
         while(!pushThreadFinished.load(std::memory_order_relaxed) || !buritto.empty()) {
             DataType out {BuRiTTO_InvalidValue};
             if(buritto.pop(out) == true) {
@@ -188,22 +196,26 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
 //     CPU_SET(1, &cpuset);
 //     pthread_setaffinity_np(popThread.native_handle(), sizeof(cpu_set_t), &cpuset);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    while(threadRunCount < 2) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     
-    BENCHMARK("BuRiTTO push and pop 1 million values") {
-        {
-            std::unique_lock<std::mutex> lock(mtx);
-            run = true;
-        }
-        condVar.notify_all();
-        
-        pushThread.join();
-        popThread.join();
-    };
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        run = true;
+    }
+
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    condVar.notify_all();
+
+    pushThread.join();
+    popThread.join();
     
     auto elapsedTime = std::chrono::high_resolution_clock::now() - startTime;
     std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds> (elapsedTime).count() << "ms" << std::endl;
     
+    std::cout << "expected pushes \t" << NUMBER_OF_PUSHES << std::endl;
     std::cout << "push counter \t" << pushCounter << std::endl;
     std::cout << "overrun + pop \t" << overrunCounter + popCounter << std::endl;
     std::cout << "overrun counter \t" << overrunCounter << std::endl;
@@ -243,6 +255,7 @@ TEST_CASE("BuRiTTO - Stress", "[.stress]") {
     }
     
     CHECK(dataIntact);
+    CHECK(NUMBER_OF_PUSHES == pushCounter);
     CHECK(pushCounter == (overrunCounter + popCounter));
 }
 
