@@ -21,7 +21,7 @@
 // the queue is just a building block and further measures have to be taken. Some ideas might be
 // borrowed from the latest Wayland feature to recover from crashed compositors.
 // Another use case might be Wayland IPC to let clients survive compositor crashes. For this, some
-// more work is needed, e.g. transactional pushes (storing the write index and the transaction sequence
+// more work is needed, e.g. transactional pushes (storing the tail position and the transaction sequence
 // alongside in a persistent memory and with using the PENDING flag). For data protection maybe some ideas
 // of Linux RCU mechanism can be borrowed.
 // TODO: evaluate which queue Wayland IPC used; potentially a FIFO since it is not allowed to lose commands
@@ -57,15 +57,15 @@ private:
     class Producer {
     public:
         std::optional<T> push(const T& data) {
-            return roquet.push(data, writeIndex);
+            return roquet.push(data, tailPosition);
         }
 
         bool empty() {
-            auto index = writeIndex;
-            if (index == 0) { index = RoQueT::InternalCapacity; }
-            --index;
+            auto position = tailPosition;
+            if (position == 0) { position = RoQueT::InternalCapacity; }
+            --position;
 
-            return (roquet.stateBuffer[index].load(std::memory_order_relaxed) & RoQueT::DATA) == 0;
+            return (roquet.stateBuffer[position].load(std::memory_order_relaxed) & RoQueT::DATA) == 0;
         }
 
     friend class RoQueT;
@@ -75,22 +75,22 @@ private:
 
     private:
         RoQueT& roquet;
-        uint32_t writeIndex{1};
+        uint32_t tailPosition{1};
     };
 
     class Consumer {
     public:
         std::optional<T> pop() {
-            return roquet.pop(readIndex);
+            return roquet.pop(headPosition);
         }
 
         bool empty() {
-            auto index = readIndex;
-            bool isCurrentEmpty = roquet.stateBuffer[index].load(std::memory_order_relaxed) & RoQueT::EMPTY;
+            auto position = headPosition;
+            bool isCurrentEmpty = roquet.stateBuffer[position].load(std::memory_order_relaxed) & RoQueT::EMPTY;
 
-            ++index;
-            if (index == RoQueT::InternalCapacity) { index = 0; }
-            auto state = roquet.stateBuffer[index].load(std::memory_order_relaxed);
+            ++position;
+            if (position == RoQueT::InternalCapacity) { position = 0; }
+            auto state = roquet.stateBuffer[position].load(std::memory_order_relaxed);
             bool isNextEndOrPending = (state & (RoQueT::END | RoQueT::PENDING));
 
             return (isCurrentEmpty && isNextEndOrPending);
@@ -103,7 +103,7 @@ private:
 
     private:
         const RoQueT& roquet;
-        uint32_t readIndex{0};
+        uint32_t headPosition{0};
     };
 
 public:
@@ -121,44 +121,44 @@ public:
 
 private:
     // TODO use tuple instead of out-parameter
-    std::optional<T> push(const T& data, uint32_t& index) {
-        assert(index < InternalCapacity && "Index out of bounds");
+    std::optional<T> push(const T& data, uint32_t& position) {
+        assert(position < InternalCapacity && "Position out of bounds");
 
         // NOTE: don't return nullopt but always resource to make use of NRVO
         std::optional<T> resource;
-        auto nextIndex = index + 1;
-        if (nextIndex >= InternalCapacity) { nextIndex = 0; }
+        auto nextPosition = position + 1;
+        if (nextPosition >= InternalCapacity) { nextPosition = 0; }
 
         auto state = END; // TODO do we want to encode the overflow state? In this case push will not be wait-free anymore and a CAS needs to be performed
-        state = stateBuffer[nextIndex].exchange(state, std::memory_order_relaxed);
+        state = stateBuffer[nextPosition].exchange(state, std::memory_order_relaxed);
         if (state & DATA) {
-            resource.emplace(dataBuffer[nextIndex]);
+            resource.emplace(dataBuffer[nextPosition]);
         }
 
-        dataBuffer[index] = data;
-        state = stateBuffer[index].load(std::memory_order_relaxed);
+        dataBuffer[position] = data;
+        state = stateBuffer[position].load(std::memory_order_relaxed);
         state = DATA;
-        stateBuffer[index].store(state, std::memory_order_release);
+        stateBuffer[position].store(state, std::memory_order_release);
 
-        index = nextIndex;
+        position = nextPosition;
         return resource;
     }
 
     // it is not nice to have this as const method but required to ensure the pop cannot mutate the data buffer ... let's pretend this works the same like interior mutability with Rust atomics
     // TODO use tuple instead of out-parameter
-    std::optional<T> pop(uint32_t& index) const {
-        assert(index < InternalCapacity && "Index out of bounds");
+    std::optional<T> pop(uint32_t& position) const {
+        assert(position < InternalCapacity && "Position out of bounds");
         // acquire read of the state at non-EMPTY
-        // do a relaxed(acquire?) CAS at index of (non-EMPTY - 1, i.e. current index) with an expected EMPTY state to enforce memory sync
+        // do a relaxed(acquire?) CAS at position of (non-EMPTY - 1, i.e. current position) with an expected EMPTY state to enforce memory sync
         // read the data and write (relaxed?) an EMPTY tag into the non-EMPTY state with a CAS
 
         // NOTE: don't return nullopt but always resource to make use of NRVO
         std::optional<T> resource;
-        auto currentIndex = index;
-        auto nextIndex = currentIndex + 1;
-        if (nextIndex >= InternalCapacity) { nextIndex = 0; }
+        auto currentPosition = position;
+        auto nextPosition = currentPosition + 1;
+        if (nextPosition >= InternalCapacity) { nextPosition = 0; }
 
-        auto state = stateBuffer[nextIndex].load(std::memory_order_relaxed);
+        auto state = stateBuffer[nextPosition].load(std::memory_order_relaxed);
         // TODO do we need an overflow flag
         if(state & END) {
             return resource;
@@ -171,7 +171,7 @@ private:
     mutable std::atomic<uint8_t> stateBuffer[InternalCapacity];
     // this could also be placed at a location where the consumer has no write access
     T dataBuffer[InternalCapacity];
-    // writeIndex could be buffered here instead of Producer to enable crash recovery
+    // tailPosition could be buffered here instead of Producer to enable crash recovery
 };
 
 #endif // _ROQUET_HPP_
