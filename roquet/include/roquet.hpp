@@ -61,11 +61,11 @@ private:
         }
 
         bool empty() {
-            auto position = tailPosition;
-            if (position == 0) { position = RoQueT::InternalCapacity; }
-            --position;
+            auto preceedingPosition = tailPosition;
+            if (preceedingPosition == 0) { preceedingPosition = RoQueT::InternalCapacity; }
+            --preceedingPosition;
 
-            return (roquet.stateBuffer[position].load(std::memory_order_relaxed) & RoQueT::DATA) == 0;
+            return (roquet.stateBuffer[preceedingPosition].load(std::memory_order_relaxed) & RoQueT::DATA) == 0;
         }
 
     friend class RoQueT;
@@ -85,15 +85,20 @@ private:
         }
 
         bool empty() {
-            auto position = headPosition;
-            bool isCurrentEmpty = roquet.stateBuffer[position].load(std::memory_order_relaxed) & RoQueT::EMPTY;
+            auto isCurrentEmpty = [this] {
+                auto currentPosition = this->headPosition;
+                return this->roquet.stateBuffer[currentPosition].load(std::memory_order_relaxed) & RoQueT::EMPTY;
+            };
 
-            ++position;
-            if (position == RoQueT::InternalCapacity) { position = 0; }
-            auto state = roquet.stateBuffer[position].load(std::memory_order_relaxed);
-            bool isNextEndOrPending = (state & (RoQueT::END | RoQueT::PENDING));
+            auto isNextEndOrPending = [this] {
+                auto nextPosition = this->headPosition;
+                ++nextPosition;
+                if (nextPosition == RoQueT::InternalCapacity) { nextPosition = 0; }
+                auto state = this->roquet.stateBuffer[nextPosition].load(std::memory_order_relaxed);
+                return (state & (RoQueT::END | RoQueT::PENDING));
+            };
 
-            return (isCurrentEmpty && isNextEndOrPending);
+            return (isCurrentEmpty() && isNextEndOrPending());
         }
 
     friend class RoQueT;
@@ -156,13 +161,45 @@ private:
         std::optional<T> resource;
         auto currentPosition = position;
         auto nextPosition = currentPosition + 1;
-        if (nextPosition >= InternalCapacity) { nextPosition = 0; }
 
-        auto state = stateBuffer[nextPosition].load(std::memory_order_relaxed);
-        // TODO do we need an overflow flag
-        if(state & END) {
-            return resource;
-        }
+        constexpr bool KEEP_TRYING {true};
+        do {
+
+            if (nextPosition >= InternalCapacity) { nextPosition = 0; }
+
+            auto stateNextPosition = stateBuffer[nextPosition].load(std::memory_order_acquire);
+            auto stateCurrentPosition = EMPTY;
+            // TODO this is required to enforce memory synchronization through all caches with 'relaxed' access but would an 'acquire' load yield the same effect
+            stateBuffer[currentPosition].compare_exchange_strong(stateCurrentPosition, EMPTY,std::memory_order_relaxed);
+
+            if((stateCurrentPosition & EMPTY) && (stateNextPosition & (END | PENDING))) {
+                // queue is empty
+                break;
+            }
+            else if (!((stateCurrentPosition & (EMPTY | END)) && (stateNextPosition & DATA))) {
+                // there was an overflow and we need to find the new head
+                currentPosition = nextPosition;
+                ++nextPosition;
+                continue;
+            }
+
+            resource.emplace(dataBuffer[nextPosition]);
+            auto newStateNextPosition = EMPTY;
+
+            auto popSuccessful = stateBuffer[nextPosition].compare_exchange_strong(stateNextPosition, newStateNextPosition, std::memory_order_release, std::memory_order_acquire);
+            if (!popSuccessful) {
+                resource.reset();
+                // find new END
+                currentPosition = nextPosition;
+                ++nextPosition;
+            } else {
+                position = nextPosition;
+                if ((stateCurrentPosition & END) && (stateCurrentPosition & OVERFLOW)) {
+                    // TODO inform the user about the overflow, e.g. by setting a flag or via return value
+                }
+                break;
+            }
+        } while (KEEP_TRYING);
 
         return resource;
     }

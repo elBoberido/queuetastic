@@ -38,6 +38,26 @@ SCENARIO("RoQuet - Unittest") {
                     REQUIRE(popReturnValue.has_value() == false);
                 }
             }
+
+            AND_WHEN("pushing data") {
+                constexpr DataType DATA {42};
+                auto pushReturnValue = producer.push(DATA);
+                THEN("it should not be empty and not return data") {
+                    REQUIRE(producer.empty() == false);
+                    REQUIRE(consumer.empty() == false);
+                    REQUIRE(pushReturnValue.has_value() == false);
+                }
+
+                AND_WHEN("calling pop") {
+                    auto popReturnValue = consumer.pop();
+                    THEN("it should return data and be empty again") {
+                        REQUIRE(producer.empty() == true);
+                        REQUIRE(consumer.empty() == true);
+                        REQUIRE(popReturnValue.has_value() == true);
+                        REQUIRE(popReturnValue.value() == DATA);
+                    }
+                }
+            }
         }
 
         WHEN("filling the roquet to the point before overrun") {
