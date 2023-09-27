@@ -12,19 +12,19 @@
 #include <thread>
 
 SCENARIO("RoQuet - Unittest") {
-    constexpr std::uint32_t ContainerCapacity { 10 };
+    constexpr std::uint32_t ContainerCapacity {10};
     using DataType = size_t;
-    using RoQueT = RoQueT<DataType, ContainerCapacity>;
+    using RoQueT   = RoQueT<DataType, ContainerCapacity>;
 
-    constexpr DataType RoQueT_CounterStartValue { 0 };
+    constexpr DataType RoQueT_CounterStartValue {0};
 
-    DataType dataCounter { RoQueT_CounterStartValue };
-    DataType pushCounter { RoQueT_CounterStartValue };
+    DataType dataCounter {RoQueT_CounterStartValue};
+    DataType pushCounter {RoQueT_CounterStartValue};
 
     GIVEN("An RoQueT with a fixed capacity") {
         RoQueT roquet;
-        auto producer = roquet.producer();
-        auto consumer = roquet.consumer();
+        auto   producer = roquet.producer();
+        auto   consumer = roquet.consumer();
 
         WHEN("the roquet was just created") {
             THEN("it should be empty") {
@@ -41,7 +41,7 @@ SCENARIO("RoQuet - Unittest") {
 
             AND_WHEN("pushing data") {
                 constexpr DataType DATA {42};
-                auto pushReturnValue = producer.push(DATA);
+                auto               pushReturnValue = producer.push(DATA);
                 THEN("it should not be empty and not return data") {
                     REQUIRE(producer.empty() == false);
                     REQUIRE(consumer.empty() == false);
@@ -62,19 +62,18 @@ SCENARIO("RoQuet - Unittest") {
 
         WHEN("filling the roquet to the point before overrun") {
             std::optional<DataType> pushReturnValue;
-            bool producerEmptyReturnValue { false };
-            bool consumerEmptyReturnValue { false };
-            constexpr size_t ExtraCapacity = 1;
-            for(auto i = 0u; i < ContainerCapacity + ExtraCapacity; i++) {
-
-                pushReturnValue = producer.push(pushCounter);
+            bool                    producerEmptyReturnValue {false};
+            bool                    consumerEmptyReturnValue {false};
+            constexpr size_t        ExtraCapacity = 1;
+            for (auto i = 0u; i < ContainerCapacity + ExtraCapacity; i++) {
+                pushReturnValue          = producer.push(pushCounter);
                 producerEmptyReturnValue = producer.empty();
                 consumerEmptyReturnValue = consumer.empty();
                 pushCounter++;
 
-                if(pushReturnValue.has_value()) { break; }
-                if(producerEmptyReturnValue == true) { break; }
-                if(consumerEmptyReturnValue == true) { break; }
+                if (pushReturnValue.has_value()) { break; }
+                if (producerEmptyReturnValue == true) { break; }
+                if (consumerEmptyReturnValue == true) { break; }
             }
 
             THEN("it should not overrun, return data or be empty") {
@@ -84,7 +83,7 @@ SCENARIO("RoQuet - Unittest") {
             }
 
             AND_WHEN("pushing more data") {
-                pushReturnValue = producer.push(pushCounter);
+                pushReturnValue          = producer.push(pushCounter);
                 producerEmptyReturnValue = producer.empty();
                 consumerEmptyReturnValue = consumer.empty();
                 pushCounter++;
@@ -100,27 +99,26 @@ SCENARIO("RoQuet - Unittest") {
 
                 AND_WHEN("pop all data out") {
                     std::optional<DataType> popReturnValue;
-                    for(auto i = 0u; i < ContainerCapacity + ExtraCapacity; i++) {
+                    for (auto i = 0u; i < ContainerCapacity + ExtraCapacity; i++) {
                         producerEmptyReturnValue = producer.empty();
                         consumerEmptyReturnValue = consumer.empty();
-                        popReturnValue = consumer.pop();
+                        popReturnValue           = consumer.pop();
                         dataCounter++;
 
-                        if(popReturnValue.has_value() == false) { break; }
-                        if(producerEmptyReturnValue == true) { break; }
-                        if(consumerEmptyReturnValue == true) { break; }
-                        if(popReturnValue.value() != dataCounter-1) { break; }
+                        if (popReturnValue.has_value() == false) { break; }
+                        if (producerEmptyReturnValue == true) { break; }
+                        if (consumerEmptyReturnValue == true) { break; }
+                        if (popReturnValue.value() != dataCounter - 1) { break; }
                     }
 
                     THEN("it should always return data and not be empty") {
                         REQUIRE(popReturnValue.has_value() == true);
-                        REQUIRE(popReturnValue.value() == dataCounter-1);
+                        REQUIRE(popReturnValue.value() == dataCounter - 1);
                         REQUIRE(producerEmptyReturnValue == false);
                         REQUIRE(consumerEmptyReturnValue == false);
                     }
 
                     AND_WHEN("all data is out") {
-
                         THEN("it should be empty") {
                             REQUIRE(producer.empty() == true);
                             REQUIRE(consumer.empty() == true);
@@ -135,31 +133,31 @@ SCENARIO("RoQuet - Unittest") {
 }
 
 TEST_CASE("RoQueT - Stress", "[.stress]") {
-    constexpr std::uint32_t ContainerCapacity { 10 };
+    constexpr std::uint32_t ContainerCapacity {10};
     using DataType = uint64_t;
-    using RoQueT = RoQueT<DataType, ContainerCapacity>;
+    using RoQueT   = RoQueT<DataType, ContainerCapacity>;
 
     constexpr uint64_t NUMBER_OF_PUSHES {1000000};
-    constexpr DataType COUNTER_START_VALUE { 0 };
+    constexpr DataType COUNTER_START_VALUE {0};
 
-    DataType pushCounter { COUNTER_START_VALUE };
-    DataType popCounter { COUNTER_START_VALUE };
-    DataType overrunCounter {0};
+    DataType          pushCounter {COUNTER_START_VALUE};
+    DataType          popCounter {COUNTER_START_VALUE};
+    DataType          overrunCounter {0};
     std::atomic<bool> pushThreadFinished {false};
 
     RoQueT roquet;
-    auto producer = roquet.producer();
-    auto consumer = roquet.consumer();
+    auto   producer = roquet.producer();
+    auto   consumer = roquet.consumer();
 
     std::vector<DataType> overrunData;
     std::vector<DataType> popData;
     overrunData.reserve(NUMBER_OF_PUSHES);
     popData.reserve(NUMBER_OF_PUSHES);
 
-    std::atomic<uint64_t> threadRunCount {0};
-    std::mutex mtx;
+    std::atomic<uint64_t>   threadRunCount {0};
+    std::mutex              mtx;
     std::condition_variable condVar;
-    bool run { false };
+    bool                    run {false};
 
     auto pushThread = std::thread([&] {
         {
@@ -171,10 +169,10 @@ TEST_CASE("RoQueT - Stress", "[.stress]") {
         msg += std::to_string(sched_getcpu());
         msg += "\n";
         std::cout << msg << std::flush;
-        for(uint64_t i = 0; i < NUMBER_OF_PUSHES; i++) {
+        for (uint64_t i = 0; i < NUMBER_OF_PUSHES; i++) {
             const auto retVal = producer.push(pushCounter);
             pushCounter++;
-            if(retVal.has_value()) {
+            if (retVal.has_value()) {
                 overrunCounter++;
                 overrunData.push_back(retVal.value());
             }
@@ -196,9 +194,9 @@ TEST_CASE("RoQueT - Stress", "[.stress]") {
         msg += "\n";
         std::cout << msg << std::flush;
         uint64_t failedPopsWhilePushThreadFinished {0};
-        while(!pushThreadFinished.load(std::memory_order_relaxed) || !consumer.empty()) {
+        while (!pushThreadFinished.load(std::memory_order_relaxed) || !consumer.empty()) {
             auto retVal = consumer.pop();
-            if(retVal.has_value()) {
+            if (retVal.has_value()) {
                 popCounter++;
                 popData.push_back(retVal.value());
             } else if (pushThreadFinished.load(std::memory_order_relaxed)) {
@@ -214,17 +212,17 @@ TEST_CASE("RoQueT - Stress", "[.stress]") {
         std::cout << msg << std::flush;
     });
 
-//     // set CPU affinity
-//     // fastest option is when both threads run on the same core but with hyperthreading
-//     cpu_set_t cpuset;
-//     CPU_ZERO(&cpuset);
-//     CPU_SET(0, &cpuset);
-//     pthread_setaffinity_np(pushThread.native_handle(), sizeof(cpu_set_t), &cpuset);
-//     CPU_ZERO(&cpuset);
-//     CPU_SET(1, &cpuset);
-//     pthread_setaffinity_np(popThread.native_handle(), sizeof(cpu_set_t), &cpuset);
+    // set CPU affinity
+    // fastest option is when both threads run on the same core but with hyperthreading
+    // cpu_set_t cpuset;
+    // CPU_ZERO(&cpuset);
+    // CPU_SET(0, &cpuset);
+    // pthread_setaffinity_np(pushThread.native_handle(), sizeof(cpu_set_t), &cpuset);
+    // CPU_ZERO(&cpuset);
+    // CPU_SET(1, &cpuset);
+    // pthread_setaffinity_np(popThread.native_handle(), sizeof(cpu_set_t), &cpuset);
 
-    while(threadRunCount < 2) {
+    while (threadRunCount < 2) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
@@ -241,7 +239,7 @@ TEST_CASE("RoQueT - Stress", "[.stress]") {
     popThread.join();
 
     auto elapsedTime = std::chrono::high_resolution_clock::now() - startTime;
-    std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds> (elapsedTime).count() << "ms" << std::endl;
+    std::cout << "duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count() << "ms" << std::endl;
 
     std::cout << "expected pushes \t" << NUMBER_OF_PUSHES << std::endl;
     std::cout << "push counter \t" << pushCounter << std::endl;
@@ -251,29 +249,29 @@ TEST_CASE("RoQueT - Stress", "[.stress]") {
 
     std::cout << "overrun values: \t";
     int i = 0;
-    for(auto& data: overrunData) {
+    for (auto& data : overrunData) {
         std::cout << data << " ";
         i++;
-        if(i > 100) { break; }
+        if (i > 100) { break; }
     }
     std::cout << std::endl;
 
     std::cout << "pop values: \t";
     i = 0;
-    for(auto& data: popData) {
+    for (auto& data : popData) {
         std::cout << data << " ";
         i++;
-        if(i > 100) { break; }
+        if (i > 100) { break; }
     }
     std::cout << std::endl;
 
     size_t overrunIndex = 0;
-    size_t popIndex = 0;
-    bool dataIntact = true;
-    for(size_t i = COUNTER_START_VALUE; i < pushCounter; i++) {
-        if(overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
+    size_t popIndex     = 0;
+    bool   dataIntact   = true;
+    for (size_t i = COUNTER_START_VALUE; i < pushCounter; i++) {
+        if (overrunIndex < overrunData.size() && overrunData[overrunIndex] == i) {
             overrunIndex++;
-        } else if(popIndex < popData.size() && popData[popIndex] == i) {
+        } else if (popIndex < popData.size() && popData[popIndex] == i) {
             popIndex++;
         } else {
             std::cout << "data loss detected at index: " << i << std::endl;
