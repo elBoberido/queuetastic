@@ -36,7 +36,7 @@ public:
     static constexpr uint8_t EMPTY {0x01};
     static constexpr uint8_t PENDING {0x02};
     static constexpr uint8_t DATA {0x04};
-    static constexpr uint8_t OVERFLOW {0x08}; // maybe not needed
+    static constexpr uint8_t OVERFLOW {0x08};
     static constexpr uint8_t INSPECTED {0x10};
     static constexpr uint8_t END {0x80};
 
@@ -131,19 +131,40 @@ private:
 
         // NOTE: don't return nullopt but always resource to make use of NRVO
         std::optional<T> resource;
-        auto nextPosition = position + 1;
+        auto currentPosition = position;
+        auto nextPosition = currentPosition + 1;
         if (nextPosition >= InternalCapacity) { nextPosition = 0; }
 
-        auto state = END; // TODO do we want to encode the overflow state? In this case push will not be wait-free anymore and a CAS needs to be performed
-        state = stateBuffer[nextPosition].exchange(state, std::memory_order_relaxed);
-        if (state & DATA) {
-            resource.emplace(dataBuffer[nextPosition]);
+        uint8_t newState = END | OVERFLOW;
+        uint8_t expectedState = DATA;
+
+        constexpr bool KEEP_TRYING {true};
+        do {
+            if (stateBuffer[nextPosition].compare_exchange_strong(expectedState, newState, std::memory_order_relaxed)) {
+                if (expectedState & DATA) {
+                    resource.emplace(dataBuffer[nextPosition]);
+                }
+                break;
+            }
+
+            if (expectedState & DATA) {
+                newState = END | OVERFLOW;
+            } else {
+                newState = END;
+            }
+        } while (KEEP_TRYING);
+
+        if (!(stateBuffer[nextPosition].load(std::memory_order_relaxed) & END)) {
+            // at this point the state at the next tail position should contain the END flag
+            // TODO use an expected to indicate a fishy state of the queue
+            resource.reset();
+            return resource;
         }
 
-        dataBuffer[position] = data;
-        state = stateBuffer[position].load(std::memory_order_relaxed);
-        state = DATA;
-        stateBuffer[position].store(state, std::memory_order_release);
+        dataBuffer[currentPosition] = data;
+        newState = stateBuffer[currentPosition].load(std::memory_order_relaxed);
+        newState = DATA;
+        stateBuffer[currentPosition].store(newState, std::memory_order_release);
 
         position = nextPosition;
         return resource;
@@ -153,9 +174,6 @@ private:
     // TODO use tuple instead of out-parameter
     std::optional<T> pop(uint32_t& position) const {
         assert(position < InternalCapacity && "Position out of bounds");
-        // acquire read of the state at non-EMPTY
-        // do a relaxed(acquire?) CAS at position of (non-EMPTY - 1, i.e. current position) with an expected EMPTY state to enforce memory sync
-        // read the data and write (relaxed?) an EMPTY tag into the non-EMPTY state with a CAS
 
         // NOTE: don't return nullopt but always resource to make use of NRVO
         std::optional<T> resource;
@@ -163,41 +181,67 @@ private:
         auto nextPosition = currentPosition + 1;
 
         constexpr bool KEEP_TRYING {true};
+        uint64_t loopCounter {0};
         do {
+            ++loopCounter;
+            if(loopCounter > 10000) {
+                // a pop operation should not be unsuccessful with so many attempts
+                // TODO better termination criteria, e.g. configurable number of wrap-arounds defined by the user
+                // TODO use an expected to indicate a fishy state of the queue
+                resource.reset();
+                return resource;
+            }
 
             if (nextPosition >= InternalCapacity) { nextPosition = 0; }
 
             auto stateNextPosition = stateBuffer[nextPosition].load(std::memory_order_acquire);
-            auto stateCurrentPosition = EMPTY;
-            // TODO this is required to enforce memory synchronization through all caches with 'relaxed' access but would an 'acquire' load yield the same effect
-            stateBuffer[currentPosition].compare_exchange_strong(stateCurrentPosition, EMPTY,std::memory_order_relaxed);
+            auto stateCurrentPosition = stateBuffer[currentPosition].load(std::memory_order_acquire);
 
             if((stateCurrentPosition & EMPTY) && (stateNextPosition & (END | PENDING))) {
+                resource.reset();
                 // queue is empty
                 break;
             }
-            else if (!((stateCurrentPosition & (EMPTY | END)) && (stateNextPosition & DATA))) {
-                // there was an overflow and we need to find the new head
-                currentPosition = nextPosition;
-                ++nextPosition;
-                continue;
+
+            // set the inspected flag to prevent the ABA problem on a wrap-around;
+            // the inspected flag can only be set by the consumer and will be reset by the producer when new data is pushed
+            if(!(stateNextPosition & INSPECTED)) {
+                auto expectedStateNextPosition = stateNextPosition;
+                stateNextPosition |= INSPECTED;
+                auto casSuccessful = stateBuffer[nextPosition].compare_exchange_strong(expectedStateNextPosition, stateNextPosition | INSPECTED, std::memory_order_release, std::memory_order_acquire);
+                if (!casSuccessful) {
+                    continue;
+                }
             }
 
             resource.emplace(dataBuffer[nextPosition]);
-            auto newStateNextPosition = EMPTY;
 
-            auto popSuccessful = stateBuffer[nextPosition].compare_exchange_strong(stateNextPosition, newStateNextPosition, std::memory_order_release, std::memory_order_acquire);
-            if (!popSuccessful) {
-                resource.reset();
-                // find new END
+            stateCurrentPosition = stateBuffer[currentPosition].load(std::memory_order_seq_cst);
+            // TODO in theory the compare_exchange_strong with memory_order_release should have the same effect as the load with memory_order_seq_cst; further investigations are needed to determine the performance impact and correctness
+            // stateBuffer[currentPosition].compare_exchange_strong(stateCurrentPosition, stateCurrentPosition,std::memory_order_release);
+
+            if ((stateCurrentPosition & END) && (stateCurrentPosition & OVERFLOW)) {
+                stateBuffer[currentPosition].compare_exchange_strong(stateCurrentPosition, stateCurrentPosition & ~OVERFLOW,std::memory_order_release);
+            }
+            else if (((stateCurrentPosition & EMPTY) || (stateCurrentPosition & END)) && (stateNextPosition & DATA)) {
+                auto newStateNextPosition = EMPTY;
+
+                auto popSuccessful = stateBuffer[nextPosition].compare_exchange_strong(stateNextPosition, newStateNextPosition, std::memory_order_release, std::memory_order_acquire);
+                if (!popSuccessful) {
+                    // find new END
+                    currentPosition = nextPosition;
+                    ++nextPosition;
+                } else {
+                    position = nextPosition;
+                    if ((stateCurrentPosition & END) && (stateCurrentPosition & OVERFLOW)) {
+                        // TODO inform the user about the overflow, e.g. by setting a flag or via return value
+                    }
+                    break;
+                }
+            } else {
+                // there was an overflow and we need to find the new head
                 currentPosition = nextPosition;
                 ++nextPosition;
-            } else {
-                position = nextPosition;
-                if ((stateCurrentPosition & END) && (stateCurrentPosition & OVERFLOW)) {
-                    // TODO inform the user about the overflow, e.g. by setting a flag or via return value
-                }
-                break;
             }
         } while (KEEP_TRYING);
 
@@ -208,7 +252,7 @@ private:
     mutable std::atomic<uint8_t> stateBuffer[InternalCapacity];
     // this could also be placed at a location where the consumer has no write access
     T dataBuffer[InternalCapacity];
-    // tailPosition could be buffered here instead of Producer to enable crash recovery
+    // tailPosition could be buffered here instead of in the 'Producer' to enable crash recovery
 };
 
 #endif // _ROQUET_HPP_
